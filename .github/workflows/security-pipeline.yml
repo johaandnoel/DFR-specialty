@@ -1,0 +1,53 @@
+name: Secure Enterprise Pipeline
+ 
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+ 
+permissions:
+  contents: read
+  security-events: write
+ 
+jobs:
+  secure-build-and-scan:
+    name: Monolithic Agent Execution
+    runs-on: company-secure-runner # Targets your specific machine
+ 
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+ 
+   
+      - name: Python Dependency & Build Setup
+        run: |
+          echo "Verifying local Python environment..."
+          python3 --version
+          pip3 --version
+          if [ -f requirements.txt ]; then
+            pip3 install -r requirements.txt
+          fi
+ 
+  
+      - name: Set up Java for Black Duck Runner
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # Installs a trusted, open-source Java binary
+          java-version: '17'      # Black Duck 9+ requires Java 11 or 17
+ 
+
+      - name: Execute Black Duck Scan
+        env:
+          BD_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
+          BD_URL: ${{ secrets.BLACKDUCK_SERVER_URL }}
+        run: |
+          echo "Executing Black Duck scan utilizing isolated Java environment..."
+          # Runs Black Duck's CLI scanner; it will now find the Java runtime from the previous step
+          bash <(curl -s -L https://synopsys.com) \
+            --blackduck.url="$BD_URL" \
+            --blackduck.api.token="$BD_TOKEN" \
+            --detect.project.name="${{ github.event.repository.name }}" \
+            --detect.project.version.name="latest" \
+            --detect.tools=DETECTOR \
+            --detect.pip.path=$(which pip3)
